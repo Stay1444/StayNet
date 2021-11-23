@@ -111,40 +111,16 @@ namespace StayNet.Server
             this.Close();
         }
         
-        public async Task InvokeAsync(String Message, params object[] args)
+        public async Task InvokeAsync(String MessageId, params object[] args)
         {
             
         }
 
-        public async Task<String> RequestString(String MId, params object[] args)
+        public async Task<T> InvokeAsync<T>(String MessageId, params object[] args)
         {
-            return String.Empty;
+            return default(T);
         }
         
-        public async Task<int> RequestInt(String MId, params object[] args)
-        {
-            return 0;
-        }
-        
-        public async Task<bool> RequestBool(String MId, params object[] args)
-        {
-            return false;
-        }
-        
-        public async Task<float> RequestFloat(String MId, params object[] args)
-        {
-            return 0;
-        }
-        
-        public async Task<long> RequestLong(String MId, params object[] args)
-        {
-            return 0;
-        }
-        
-        public async Task<byte[]> RequestBytes(String MId, params object[] args)
-        {
-            return new byte[0];
-        }
         
         
     }
