@@ -5,7 +5,6 @@ using System.Net;
 using System.Threading;
 using ExampleConsoleApp;
 using StayNet;
-using StayNet.Server.Controllers;
 
 Console.WriteLine("Hello World!");
 
@@ -17,9 +16,3 @@ while (true)
 {
     Thread.Sleep(5000);
 }
-/*
- *
- * THIS PROGRAM DOESNT REALLY DO ANYTHING. BUT YOU CAN CHECK THE EXAMPLES. 
- * 
-*/
-

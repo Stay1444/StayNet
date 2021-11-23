@@ -2,7 +2,7 @@
 using System.Threading.Tasks;
 using StayNet.Common.Attributes;
 
-namespace StayNet.Server.Controllers
+namespace StayNet.Common.Controllers
 {
     public abstract class BaseController
     {

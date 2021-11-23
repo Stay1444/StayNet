@@ -1,6 +1,6 @@
 ﻿using System.Threading.Tasks;
 using StayNet.Common.Attributes;
-using StayNet.Server.Controllers;
+using StayNet.Common.Controllers;
 
 namespace ExampleConsoleApp
 {

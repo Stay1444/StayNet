@@ -4,7 +4,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using StayNet.Common.Attributes;
 
-namespace StayNet.Server.Controllers
+namespace StayNet.Common.Controllers
 {
     internal class ControllerManager
     {

@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using StayNet.Common.Enums;
 using StayNet.Common.Interfaces;
 using StayNet.Server;
-using StayNet.Server.Controllers;
+using StayNet.Common.Controllers;
 using StayNet.Server.Entities;
 using StayNet.Server.Events;
 using StayNet.Server.Exceptions;
