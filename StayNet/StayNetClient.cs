@@ -135,7 +135,11 @@ namespace StayNet
         
         public async Task InvokeAsync(String Message, params object[] args)
         {
-            
+            CancellationTokenSource cts = new CancellationTokenSource();
+            cts.CancelAfter(5000);
+            cts.Token.ThrowIfCancellationRequested();
+            await Task.Delay(5001);
+            Console.WriteLine("hi!");
         }
         
     }

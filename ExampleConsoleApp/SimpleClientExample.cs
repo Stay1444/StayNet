@@ -15,7 +15,7 @@ namespace ExampleConsoleApp
 
             Thread.Sleep(2500);
             client.Disconnect();
-            
+
         }
     }
 }
