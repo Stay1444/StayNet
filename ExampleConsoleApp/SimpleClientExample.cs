@@ -13,9 +13,6 @@ namespace ExampleConsoleApp
             var client = new StayNetClient(end, config);
             client.Connect("CARA RANA");
 
-            Thread.Sleep(2500);
-            client.Disconnect();
-
         }
     }
 }

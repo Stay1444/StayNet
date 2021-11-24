@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Linq;
+using System.Net;
 using System.Threading;
 using StayNet;
 using StayNet.Common.Enums;
@@ -37,6 +38,13 @@ namespace ExampleConsoleApp
                 while (true)
                 {
                     Thread.Sleep(1000);
+
+                    if (server.GetClients().Count > 0)
+                    {
+                        Console.WriteLine("Clients: " + server.GetClients().Count);
+                        server.GetClients().FirstOrDefault()?.InvokeAsync("hi", 1, "hi", config);
+                    }
+                    
                 }
             }).Start();
 
