@@ -1,8 +1,10 @@
 ﻿using System.IO;
 using System.Linq;
 using System.Net.Sockets;
+using System.Runtime.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using StayNet.Common.Entities;
 using StayNet.Common.Enums;
 using StayNet.Server.Entities;
 using StayNet.Server.Events;
@@ -106,13 +108,19 @@ namespace StayNet.Server
         
         public void Disconnect()
         {
+            CancellationTokenSource.Cancel();
             this.Server.m_clients.Remove(this.Id);
             this.Server.CDisconnect(this);
             this.Close();
+            
         }
         
         public async Task InvokeAsync(String MessageId, params object[] args)
         {
+            MethodInvokeManager methodInvokeManager = MethodInvokeManager.Create(this.TcpClient, CancellationTokenSource.Token, 
+                MessageId, args, MethodInvokeManagerReturnType.None);
+            
+            await methodInvokeManager.SendPreInvoke();
             
         }
 
