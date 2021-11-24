@@ -8,9 +8,14 @@
 
     <ItemGroup>
       <Folder Include="Client" />
+      <Folder Include="Common\Exceptions" />
       <Folder Include="Server\Attributes" />
       <Folder Include="Server\Enums" />
       <Folder Include="Server\Interfaces" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     </ItemGroup>
 
 </Project>
