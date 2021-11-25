@@ -1,3 +1,3 @@
 public class StayNetClient {
-    System.out.println("Hello Wordl!");
+    System.out.println("Hello World!");
 }
