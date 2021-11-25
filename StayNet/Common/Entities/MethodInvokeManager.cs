@@ -18,6 +18,8 @@ namespace StayNet.Common.Entities
         private Object ReturnValue;
         public static MethodInvokeManager Create(TcpClient client, CancellationToken ct, string messageId, object[] invArgs, MethodInvokeManagerReturnType returnType)
         {
+            
+            
             MethodInvokeManager manager = new MethodInvokeManager();
             manager.CToken = ct;
             manager._client = client;
@@ -30,6 +32,12 @@ namespace StayNet.Common.Entities
 
         public async Task SendPreInvoke()
         {
+            Packet packet = new Packet();
+            packet.WriteByte((byte)BasePacketTypes.Message);
+            packet.WriteByte(0);
+            packet.WriteString(MethodName);
+            
+            Console.WriteLine($"PreInvoke weights {packet.Data.Length}");
             
         }
     }

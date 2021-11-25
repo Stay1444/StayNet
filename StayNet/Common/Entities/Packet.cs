@@ -22,6 +22,19 @@ namespace StayNet.Common.Entities
             _data = data.ToList();
         }
         
+        public Packet(byte[] data, int position)
+        {
+            _data = data.ToList();
+            _position = position;
+        }
+
+
+        public Packet()
+        {
+            _data = new List<byte>();
+            
+        }
+        
         public void Reset()
         {
             _position = 0;
@@ -76,7 +89,7 @@ namespace StayNet.Common.Entities
         
         public string ReadString(bool advancePosition = true)
         {
-            int length = ReadInt(false);
+            int length = ReadInt();
             string value = Encoding.UTF32.GetString(_data.ToArray(), _position, length);
             if (advancePosition)
                 _position += length;

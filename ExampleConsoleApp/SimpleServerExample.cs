@@ -42,7 +42,7 @@ namespace ExampleConsoleApp
                     if (server.GetClients().Count > 0)
                     {
                         Console.WriteLine("Clients: " + server.GetClients().Count);
-                        server.GetClients().FirstOrDefault()?.InvokeAsync("hi", 1, "hi", config);
+                        server.GetClients().FirstOrDefault()?.InvokeAsync("", 1, "hi", config);
                     }
                     
                 }

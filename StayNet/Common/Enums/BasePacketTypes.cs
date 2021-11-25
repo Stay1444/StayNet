@@ -1,10 +1,10 @@
 ﻿namespace StayNet.Common.Enums
 {
-    public enum BasePacketTypes
+    public enum BasePacketTypes : byte
     {
-        InitialMessage = 0x00,
-        KeepAlive = 0x01,
-        Message = 0x02,
-        FileData = 0x03,
+        InitialMessage = 0,
+        KeepAlive = 1,
+        Message = 2,
+        FileData = 3,
     }
 }
