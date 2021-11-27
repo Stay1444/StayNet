@@ -1,4 +1,6 @@
-﻿using System.Net.Sockets;
+﻿using System.Collections.Generic;
+using System.Linq;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using StayNet.Common.Enums;
@@ -33,12 +35,10 @@ namespace StayNet.Common.Entities
         public async Task SendPreInvoke()
         {
             Packet packet = new Packet();
-            packet.WriteByte((byte)BasePacketTypes.Message);
             packet.WriteByte(0);
             packet.WriteString(MethodName);
-            
-            Console.WriteLine($"PreInvoke weights {packet.Data.Length}");
-            
+            PacketSender sender = new PacketSender(_client, packet, BasePacketTypes.Message);
+            await sender.SendAsync();
         }
     }
 }

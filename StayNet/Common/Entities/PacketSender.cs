@@ -1,36 +1,33 @@
 ﻿using System.Net.Sockets;
 using System.Threading.Tasks;
+using StayNet.Common.Enums;
 
 namespace StayNet.Common.Entities
 {
     internal class PacketSender
     {
-
-        private Packet Packet;
-        private TcpClient Client;
-
-        public PacketSender(Packet packet, TcpClient client)
+        private readonly TcpClient _client;
+        private readonly NetworkStream _stream;
+        private readonly byte[] _packet;
+        
+        public PacketSender(TcpClient client, Packet packet, BasePacketTypes basePacketTypes)
         {
-            this.Client = client;
-            this.Packet = packet;
-        }
-
-
-        public void Send()
-        {
-            PreSend();
-        }
-
-        public async void PreSend()
-        {
-            if (DateTime.Now.Ticks % 2 == 0)
-            {
-                throw new Exception();
-            }
-
-            await Task.Delay(-1);
+            _client = client;
+            _stream = client.GetStream();
+            _packet = new byte[packet.Length + 1];
+            _packet[0] = (byte)basePacketTypes;
+            Array.Copy(packet.Data, 0, _packet, 1, packet.Length);
         }
         
+        public async Task SendAsync()
+        {
+            var stream = _client.GetStream();
+            var data = new byte[_packet.Length + 4];
+            var length = BitConverter.GetBytes(_packet.Length);
+            Array.Copy(length, data, 4);
+            Array.Copy(_packet, 0, data, 4, _packet.Length);
+            await stream.WriteAsync(data, 0, data.Length);
+        }
         
     }
 }

@@ -28,8 +28,8 @@ namespace ExampleConsoleApp
             {
                 if (ev.ConnectionData.ReadString() != "CARA RANA")
                 {
-                    Console.WriteLine("UNAUTHORIZED");
-                    ev.Cancel();
+                    Console.WriteLine((ev.ConnectionData.ReadString()));
+
                 }
             };
             

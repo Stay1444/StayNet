@@ -7,7 +7,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <Folder Include="Client" />
       <Folder Include="Common\Exceptions" />
       <Folder Include="Server\Attributes" />
       <Folder Include="Server\Enums" />

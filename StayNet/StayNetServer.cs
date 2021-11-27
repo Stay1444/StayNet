@@ -7,12 +7,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using StayNet.Common.Enums;
 using StayNet.Common.Interfaces;
-using StayNet.Server;
 using StayNet.Common.Controllers;
 using StayNet.Server.Entities;
 using StayNet.Server.Events;
 using StayNet.Server.Exceptions;
-
+using StayNet.Server;
 namespace StayNet
 {
     public sealed class StayNetServerConfiguration
@@ -29,8 +28,8 @@ namespace StayNet
 
         #region Events
         
-        public event EventHandler<Client> ClientConnected;
-        public event EventHandler<Client> ClientDisconnected;
+        public event EventHandler<Server.Client> ClientConnected;
+        public event EventHandler<Server.Client> ClientDisconnected;
         public event EventHandler<ClientConnectingEvent> ClientConnecting;
 
         #endregion
@@ -50,7 +49,7 @@ namespace StayNet
 
         internal CancellationTokenSource m_cancellation;
 
-        internal Dictionary<int, Client> m_clients = new();
+        internal Dictionary<int, Server.Client> m_clients = new();
         
         internal void Log(LogLevel level, string message)
         {
@@ -121,7 +120,7 @@ namespace StayNet
         private async Task HandleClientAsync(TcpClient client)
         {
             // we create a new client
-            Client c = new Client(client, this);
+            Server.Client c = new Server.Client(client, this);
             c.TcpClient.ReceiveBufferSize = 8192;
             c.TcpClient.SendBufferSize = 8192;
             Log(LogLevel.Info, $"Client connected [{c.Id}]");
@@ -209,17 +208,17 @@ namespace StayNet
             Log(LogLevel.Info, "Server stopped");
         }
 
-        internal void CDisconnect(Client client)
+        internal void CDisconnect(Server.Client client)
         {
             ClientDisconnected?.Invoke(this, client);
         }
         
-        public List<Client> GetClients()
+        public List<Server.Client> GetClients()
         {
             return m_clients.Values.ToList();
         }
         
-        public Client GetClient(int id)
+        public Server.Client GetClient(int id)
         {
             return m_clients.ContainsKey(id) ? m_clients[id] : null;
         }

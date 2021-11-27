@@ -11,7 +11,7 @@ namespace ExampleConsoleApp
             var config = new StayNetClientConfiguration();
             config.Logger = new ConsoleLogger();
             var client = new StayNetClient(end, config);
-            client.Connect("CARA RANA");
+            client.ConnectAsync("CARA RANA").GetAwaiter().GetResult();
 
         }
     }

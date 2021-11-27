@@ -14,6 +14,14 @@ namespace StayNet.Common.Entities
                 return _data.ToArray();
             }
         }
+        
+        public int Length
+        {
+            get
+            {
+                return _data.Count;
+            }
+        }
 
         private int _position;
         
