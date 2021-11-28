@@ -26,6 +26,7 @@ namespace StayNet.Common.Entities
             var length = BitConverter.GetBytes(_packet.Length);
             Array.Copy(length, data, 4);
             Array.Copy(_packet, 0, data, 4, _packet.Length);
+
             await stream.WriteAsync(data, 0, data.Length);
         }
         

@@ -1,23 +1,24 @@
 ﻿using System.IO;
 using System.Text;
+using StayNet.Common.Entities;
 
 namespace StayNet.Server.Entities
 {
     public sealed class ClientConnectionData
     {
 
-        public MemoryStream Stream { get; internal set; }
-        
-        public void Read(byte[] buffer, int offset, int count)
-        {
-            Stream.Read(buffer, offset, count);
-        }
-        
+        internal Packet Packet { get; set; }
+
+
         public string ReadString()
         {
-            //convert all memoryStream to a UTF-8 string
-            byte[] bytes = Stream.ToArray();
-            return Encoding.UTF8.GetString(bytes, 0, bytes.Length);
+            return Encoding.UTF8.GetString(Packet.Data);
         }
+        
+        public byte[] ReadBytes()
+        {
+            return Packet.Data;
+        }
+        
     }
 }

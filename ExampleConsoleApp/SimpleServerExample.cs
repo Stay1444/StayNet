@@ -23,29 +23,27 @@ namespace ExampleConsoleApp
             var server = new StayNetServer(config);
             server.RegisterController<SimpleController>();
             server.Start();
-
-            server.ClientConnecting += (server, ev) =>
+            server.ClientConnecting += (sender, e) => 
             {
-                if (ev.ConnectionData.ReadString() != "CARA RANA")
-                {
-                    Console.WriteLine((ev.ConnectionData.ReadString()));
-
-                }
+                Console.WriteLine($"Client connecting: {e.ConnectionData.ReadString()}");
             };
-            
+
             new Thread(() =>
             {
+
                 while (true)
                 {
-                    Thread.Sleep(1000);
-
+                    Thread.Sleep(100);
                     if (server.GetClients().Count > 0)
                     {
-                        Console.WriteLine("Clients: " + server.GetClients().Count);
-                        server.GetClients().FirstOrDefault()?.InvokeAsync("", 1, "hi", config);
+                        Console.WriteLine($"Connections: {server.GetClients().Count}");
+                        foreach (var client in server.GetClients())
+                        {
+                            Console.WriteLine($"Client: {client.Id} Ping: {client.Ping}");
+                        }
                     }
-                    
                 }
+                
             }).Start();
 
         }

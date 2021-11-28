@@ -1,11 +1,16 @@
-﻿using System.IO;
+﻿using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Runtime.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Timers;
+using Newtonsoft.Json;
 using StayNet.Common.Entities;
 using StayNet.Common.Enums;
+using StayNet.Common.Exceptions;
 using StayNet.Server.Entities;
 using StayNet.Server.Events;
 
@@ -20,6 +25,10 @@ namespace StayNet.Server
         public StayNetServer Server { get; internal set; }
         internal byte[] Buffer;
         internal CancellationTokenSource CancellationTokenSource;
+        internal PacketHandler PacketHandler;
+        internal List<byte> _receiveBuffer = new List<byte>();
+        private System.Timers.Timer _keepAliveTimer;
+        public int Ping { get; private set; }
         internal Client(TcpClient tcpclient, StayNetServer server)
         {
             this.TcpClient = tcpclient;
@@ -29,6 +38,37 @@ namespace StayNet.Server
             {
                 this.Id++;
             }
+            PacketHandler = new PacketHandler(this);
+            _keepAliveTimer = new(1000);
+            _keepAliveTimer.Elapsed += KeepAliveTimerOnElapsed;
+            _keepAliveTimer.AutoReset = false;
+        }
+
+        private void KeepAliveTimerOnElapsed(object? sender, ElapsedEventArgs e)
+        {
+            Packet packet = new Packet();
+            packet.WriteByte(1);
+            PacketSender psender = new PacketSender(this.TcpClient, packet, BasePacketTypes.KeepAlive);
+            CancellationTokenSource cts = new CancellationTokenSource();
+            cts.CancelAfter(5000);
+            var responseTask = PacketHandler.WaitForPacket(p => p.PacketType == BasePacketTypes.KeepAlive, cts.Token);
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+            psender.SendAsync().GetAwaiter().GetResult();
+            var response = responseTask.GetAwaiter().GetResult();
+            sw.Stop();
+            if (response == null)
+            {
+                this.Server.Log(LogLevel.Info,$"Client {this.Id} timed out");
+                this.Disconnect();
+            }
+            else
+            {
+                Ping = (int)sw.ElapsedMilliseconds;
+                _keepAliveTimer.Start();
+            }
+            
+            
         }
 
         /**
@@ -36,68 +76,97 @@ namespace StayNet.Server
          */
         internal async Task<ClientConnectionData> WaitForConnectionData()
         {
-            var stream = TcpClient.GetStream();
             //we need to wait for the client to send us the initial connection data
-            while (!stream.DataAvailable)
+            Buffer = new byte[TcpClient.ReceiveBufferSize];
+            CancellationTokenSource cts = new CancellationTokenSource();
+            try
             {
-                await Task.Delay(50);
-            }
-            var data = new byte[TcpClient.Available];
-            await stream.ReadAsync(data, 0, data.Length);
-            var connectionData = new ClientConnectionData();
-            var id = data[0];
+                cts.CancelAfter(5000);
+                var packetInfoTask = PacketHandler.WaitForPacket(_ => true, cts.Token);
+                TcpClient.GetStream().BeginRead(Buffer, 0, TcpClient.ReceiveBufferSize, __read, null);
+                var packetInfo = await packetInfoTask;
+                if (cts.IsCancellationRequested)
+                {
 
-            // if the id doesnt match the InitialMessage packet id, we need to disconnect the client. In this case, we just return null 
-            // and the client will be disconnected.
-            if (id != (int) BasePacketTypes.InitialMessage)
+                    this.Server.Log(LogLevel.Debug, $"Client {this.Id} timed out waiting for connection data");
+
+                    return null;
+                }
+
+                var connectionData = new ClientConnectionData();
+                // if the id doesnt match the InitialMessage packet id, we need to disconnect the client. In this case, we just return null 
+                // and the client will be disconnected.
+                if (packetInfo.PacketType != BasePacketTypes.InitialMessage)
+                {
+                    this.Server.Log(LogLevel.Debug, $"Client {this.Id} sent invalid id {packetInfo.PacketType.ToString("X")}");
+                    return null;
+                }
+                // convert the list to a byte array and set the connection data
+                connectionData.Packet = packetInfo.Packet;
+                return connectionData;
+            }catch(Exception e)
             {
-                this.Server.Log(LogLevel.Debug, $"Client {this.Id} sent invalid id {id.ToString("X")}");
+                this.Server.Log(LogLevel.Debug, $"Client {this.Id} disconnected: {e.Message}");
                 return null;
             }
-            // if the id is correct, we need to read the rest of the data, but if the data is too big, we need to disconnect the client.
-            if (data.Length > 256)
-            {
-                // In this case, we just return null and the client will be disconnected.
-                this.Server.Log(LogLevel.Debug, $"Client {this.Id} initial data too large {data.Length}");
-                return null;
-            }
-            // if the data is correct, we need to read the rest of the data.
-            var dlist = data.ToList();
-            // remove the id
-            dlist.RemoveAt(0);
-            // convert the list to a byte array and set the connection data
-            connectionData.Stream = new MemoryStream(dlist.ToArray());
-            
-            return connectionData;
         }
         
         internal async Task EndInitialization()
         {
             CancellationTokenSource = new CancellationTokenSource();
-            Buffer = new byte[TcpClient.ReceiveBufferSize];
-            TcpClient.GetStream().BeginRead(Buffer, 0, TcpClient.ReceiveBufferSize, __read, null);
+            _receiveBuffer = new List<byte>();
+            _keepAliveTimer.Start();
+
         }
+
 
         internal void __read(IAsyncResult result)
         {
+            
             try
             {
-                int _readLength = TcpClient.GetStream().EndRead(result);
-                byte[] _data = new byte[_readLength];
-                Buffer.CopyTo(_data, 0);
-                if (_readLength == 0)
+                int readLength = TcpClient.GetStream().EndRead(result);
+                if (readLength == 0)
                 {
                     this.Server.Log(LogLevel.Info, $"Client {this.Id} disconnected");
                     this.Disconnect();
                     return;
                 }
 
+                byte[] data = new byte[readLength];
+                Array.Copy(Buffer, data, readLength);
+
+                _receiveBuffer.AddRange(data);
+                HandleData();
                 Buffer = new byte[TcpClient.ReceiveBufferSize];
                 TcpClient.GetStream().BeginRead(Buffer, 0, TcpClient.ReceiveBufferSize, __read, null);
+
             }catch(Exception e)
             {
-                this.Server.Log(LogLevel.Info, $"Client {this.Id} disconnected");
+                if (TcpClient.Connected == false)
+                    return;
+                this.Server.Log(LogLevel.Info, $"Client {this.Id} disconnected. {e.Message}");
                 this.Disconnect();
+            }
+
+        }
+
+        private void HandleData()
+        {
+            
+            var data = _receiveBuffer.ToArray();
+            if (data.Length < 4)
+                return;
+            int length = BitConverter.ToInt32(data, 0);
+            byte[] packet = new byte[length];
+            Array.Copy(data, 4, packet, 0, length);
+            _receiveBuffer.RemoveRange(0, length + 4);
+            try
+            {
+                PacketHandler.Handle(packet);
+            }catch(Exception e)
+            {
+                this.Server.Log(LogLevel.Error, "Error handling packet: " + e.Message);
             }
         }
 
@@ -108,23 +177,44 @@ namespace StayNet.Server
         
         public void Disconnect()
         {
-            CancellationTokenSource.Cancel();
+            if (!TcpClient.Connected) return;
+            CancellationTokenSource?.Cancel();
             this.Server.m_clients.Remove(this.Id);
             this.Server.CDisconnect(this);
+            _keepAliveTimer.Stop();
             this.Close();
-            
         }
         
-        public async Task InvokeAsync(String MessageId, params object[] args)
+        public async Task InvokeAsync(String MethodId, params object[] args)
         {
-            MethodInvokeManager methodInvokeManager = MethodInvokeManager.Create(this.TcpClient, CancellationTokenSource.Token, 
-                MessageId, args, MethodInvokeManagerReturnType.None);
-            
-            await methodInvokeManager.SendPreInvoke();
-            
+            MethodInvokeManager methodInvokeManager = MethodInvokeManager.Create(this.TcpClient, this.PacketHandler, CancellationTokenSource.Token, 
+                MethodId, args, MethodInvokeManagerReturnType.None);
+
+            try
+            {
+                var result = await methodInvokeManager.SendPreInvoke();
+
+                if (!result)
+                {
+                    throw new MethodNotFoundException($"Method {MethodId} not found.", MethodId);
+                }
+                
+                
+            }
+            catch (TimeoutException e)
+            {
+                this.Server.Log(LogLevel.Debug, $"Error sending message {MethodId} to client {this.Id}: {e.Message}");
+            }
+            catch (MethodNotFoundException e)
+            {
+                throw e;
+            }catch(Exception e)
+            {
+                this.Server.Log(LogLevel.Debug, $"Error sending message {MethodId} to client {this.Id}: {e.Message}");
+            }
         }
 
-        public async Task<T> InvokeAsync<T>(String MessageId, params object[] args)
+        public async Task<T> InvokeAsync<T>(String MethodId, params object[] args)
         {
             return default(T);
         }

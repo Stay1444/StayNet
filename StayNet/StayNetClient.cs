@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using StayNet.Client.Entities;
 using StayNet.Common.Controllers;
+using StayNet.Common.Entities;
 using StayNet.Common.Enums;
 using StayNet.Common.Interfaces;
 
@@ -41,13 +42,27 @@ namespace StayNet
 
             if (e.PacketType == BasePacketTypes.Message)
             {
-                byte type = e.Packet.ReadByte();
+                MethodInvokeManagerPacketType type = (MethodInvokeManagerPacketType) e.Packet.ReadByte();
 
-                if (type == 0)
+                if (type == MethodInvokeManagerPacketType.PreInvoke)
                 {
-                    Log(LogLevel.Debug, "Received Message");
+
+                    string responseId = e.Packet.ReadString();
+                    string methodName = e.Packet.ReadString();
+                    Packet responsePacket = new Packet();
+                    responsePacket.WriteByte((byte)MethodInvokeManagerPacketType.PreInvokeAck);
+                    responsePacket.WriteString(responseId);
+                    responsePacket.WriteBool(ControllerManager.IsValidMethod(methodName));
+                    PacketSender psender = new PacketSender(this.TcpClient, responsePacket, BasePacketTypes.Message);
+                    psender.SendAsync().GetAwaiter().GetResult();
                 }
                 
+            }else if (e.PacketType == BasePacketTypes.KeepAlive)
+            {
+                Packet responsePacket = new Packet();
+                responsePacket.WriteByte((byte)BasePacketTypes.KeepAlive);
+                PacketSender psender = new PacketSender(this.TcpClient, responsePacket, BasePacketTypes.KeepAlive);
+                psender.SendAsync().GetAwaiter().GetResult();
             }
             
         }
@@ -103,9 +118,10 @@ namespace StayNet
 
         async Task SendInitialMessage(byte[] data)
         {
-            byte[] message = new byte[data.Length + 1];
-            message[0] = (byte)BasePacketTypes.InitialMessage;
-            await TcpClient.GetStream().WriteAsync(message, 0, message.Length);
+            Packet packet = new Packet();
+            packet.WriteBytes(data);
+            PacketSender sender = new PacketSender(this.TcpClient, packet, BasePacketTypes.InitialMessage);
+            await sender.SendAsync();            
         }
 
 
@@ -114,21 +130,23 @@ namespace StayNet
             try
             {
                 int readLength = TcpClient.GetStream().EndRead(asyncResult);
-                byte[] data = new byte[ readLength];
-                _buffer.CopyTo(data, 0);
                 if (readLength == 0)
                 {
                     Log(LogLevel.Info, $"Server disconnected");
                     Disconnect();
                     return;
                 }
+                byte[] data = new byte[readLength];
+                
+                Array.Copy(_buffer, data, readLength);
+                
                 _receiveBuffer.AddRange(data);
                 HandleData();
                 _buffer = new byte[TcpClient.ReceiveBufferSize];
                 TcpClient.GetStream().BeginRead(_buffer, 0, TcpClient.ReceiveBufferSize, __read, null);
             }catch(Exception e)
             {
-                Log(LogLevel.Info, $"Server disconnected");
+                Log(LogLevel.Info, $"Server disconnected {e.Message}");
                 this.Disconnect();
             }
         }
@@ -137,9 +155,10 @@ namespace StayNet
         {
 
             var data = _receiveBuffer.ToArray();
+            if (data.Length < 4)
+                return;
+            
             int length = BitConverter.ToInt32(data, 0);
-
-            if (length < 4) return;
             
             byte[] packet = new byte[length];
             Array.Copy(data, 4, packet, 0, length);

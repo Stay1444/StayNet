@@ -152,7 +152,7 @@ namespace StayNet
                     c.Close();
                     return;
                 }
-                await c.TcpClient.GetStream().WriteAsync(new byte[] {1});
+                //await c.TcpClient.GetStream().WriteAsync(new byte[] {1});
                 // if the event was not canceled, we add the client to the list of connected clients
                 m_clients.Add(c.Id, c);
                 // and we raise the ClientConnected event
