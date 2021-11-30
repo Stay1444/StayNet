@@ -84,12 +84,19 @@ namespace StayNet.Common.Controllers
         
         internal async Task InvokeMethod(string methodId, object[] parameters)
         {
-            if (!ControllerMethods.ContainsKey(methodId))
-                return;
-            
-            var node = ControllerMethods[methodId];
-            await (Task)node.Method.Invoke(node.Class, parameters);
-            return;
+            try
+            {
+                if (!ControllerMethods.ContainsKey(methodId))
+                    return;
+                var node = ControllerMethods[methodId];
+                var controller = (BaseController)Activator.CreateInstance(node.Class);
+                
+                 
+                await (Task)node.Method.Invoke(controller, parameters);
+            }catch(Exception e)
+            {
+                Console.WriteLine(e);
+            }
         }
         
     }

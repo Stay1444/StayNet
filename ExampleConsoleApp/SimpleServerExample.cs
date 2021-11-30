@@ -1,6 +1,8 @@
-﻿using System.Linq;
+﻿using System.Diagnostics;
+using System.Linq;
 using System.Net;
 using System.Threading;
+using Newtonsoft.Json;
 using StayNet;
 using StayNet.Common.Enums;
 
@@ -8,7 +10,7 @@ namespace ExampleConsoleApp
 {
     public class SimpleServerExample
     {
-        
+        public static StayNetServer server;
         public static void Run()
         {
             var config = new StayNetServerConfiguration
@@ -20,33 +22,38 @@ namespace ExampleConsoleApp
                 Logger = new ConsoleLogger()
             };
             
-            var server = new StayNetServer(config);
-            server.RegisterController<SimpleController>();
+             server = new StayNetServer(config);
             server.Start();
             server.ClientConnecting += (sender, e) => 
             {
-                Console.WriteLine($"Client connecting: {e.ConnectionData.ReadString()}");
+                Console.WriteLine($"Client connecting: {e.ConnectionData.ReadString()}|");
             };
 
-            new Thread(() =>
+            server.ClientConnected += (sender, e) =>
             {
+                TestRun(1);
+                Console.WriteLine($"Client connected|");
+            };
 
-                while (true)
-                {
-                    Thread.Sleep(100);
-                    if (server.GetClients().Count > 0)
-                    {
-                        Console.WriteLine($"Connections: {server.GetClients().Count}");
-                        foreach (var client in server.GetClients())
-                        {
-                            Console.WriteLine($"Client: {client.Id} Ping: {client.Ping}");
-                        }
-                    }
-                }
-                
-            }).Start();
-
+            
+            
         }
+        
+        public static void TestRun(int t)
+        {
+            Console.WriteLine($"Sending message to {server.GetClients().Count} clients");
+            Stopwatch w = new Stopwatch();
+            w.Start();
+                for (int i = 0; i<t; i++)
+                {
+                        
+                    server.GetClients().First().InvokeAsync("Hi",Guid.NewGuid().ToString(), t);
+                        
+                }
+
+                Console.WriteLine($"Sent message to {server.GetClients().Count} clients in {w.ElapsedMilliseconds}ms");
+        }
+        
         
     }
 }

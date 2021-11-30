@@ -4,6 +4,8 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Timers;
+using Newtonsoft.Json;
 using StayNet.Client.Entities;
 using StayNet.Common.Controllers;
 using StayNet.Common.Entities;
@@ -28,16 +30,21 @@ namespace StayNet
         internal List<byte> _receiveBuffer = new List<byte>();
         internal PacketHandler PacketHandler;
         internal ControllerManager ControllerManager;
+        internal PacketSender PacketSender;
+        internal System.Timers.Timer HeartbeatTimer;
         public StayNetClient(IPEndPoint endpoint, StayNetClientConfiguration config)
         {
             this.EndPoint = endpoint;
             this.Configuration = config;
             PacketHandler = new PacketHandler(this);
             ControllerManager = new ControllerManager();
-            PacketHandler.PacketReceived += PacketHandlerOnPacketReceived;
+            PacketHandler.PacketReceived += (sender, info) =>
+            {
+                Task.Run(() => PacketHandlerOnPacketReceived(sender, info));
+            };
         }
 
-        private void PacketHandlerOnPacketReceived(object? sender, PacketInfo e)
+        private async Task PacketHandlerOnPacketReceived(object? sender, PacketInfo e)
         {
 
             if (e.PacketType == BasePacketTypes.Message)
@@ -47,22 +54,81 @@ namespace StayNet
                 if (type == MethodInvokeManagerPacketType.PreInvoke)
                 {
 
-                    string responseId = e.Packet.ReadString();
+                    int responseId = e.Packet.ReadInt();
                     string methodName = e.Packet.ReadString();
-                    Packet responsePacket = new Packet();
+                    Packet responsePacket = Packet.Create();
                     responsePacket.WriteByte((byte)MethodInvokeManagerPacketType.PreInvokeAck);
-                    responsePacket.WriteString(responseId);
+                    responsePacket.WriteInt(responseId);
                     responsePacket.WriteBool(ControllerManager.IsValidMethod(methodName));
-                    PacketSender psender = new PacketSender(this.TcpClient, responsePacket, BasePacketTypes.Message);
-                    psender.SendAsync().GetAwaiter().GetResult();
+                    PacketSender.SendAsync(responsePacket, BasePacketTypes.Message).GetAwaiter().GetResult();
+                    return;
+                }
+
+                if (type == MethodInvokeManagerPacketType.Invoke)
+                {
+                    int responseId = e.Packet.ReadInt();
+                    string methodName = e.Packet.ReadString();
+                    int argCount = e.Packet.ReadInt();
+                    object[] args = new object[argCount];
+                    for (int i = 0; i < argCount; i++)
+                    {
+                        string argType = e.Packet.ReadString();
+                        Type t = Type.GetType(argType);
+                        if (t == null)
+                            continue;
+
+                        if (t == typeof(string))
+                        {
+                            args[i] = e.Packet.ReadString();
+                        }else if (t == typeof(int))
+                        {
+                            args[i] = e.Packet.ReadInt();
+                        }else if (t == typeof(bool))
+                        {
+                            args[i] = e.Packet.ReadBool();
+                        }else if (t == typeof(float))
+                        {
+                            args[i] = e.Packet.ReadFloat();
+                        }else if (t == typeof(double))
+                        {
+                            args[i] = e.Packet.ReadDouble();
+                        }else if (t == typeof(byte))
+                        {
+                            args[i] = e.Packet.ReadByte();
+                        }else if (t == typeof(short))
+                        {
+                            args[i] = e.Packet.ReadShort();
+                        }else if (t == typeof(long))
+                        {
+                            args[i] = e.Packet.ReadLong();
+                        }
+                        else
+                        {
+                            args[i] = JsonConvert.DeserializeObject(e.Packet.ReadString());
+                        }
+
+                    }
+                    Packet responsePacket = Packet.Create();
+                    responsePacket.WriteByte((byte)MethodInvokeManagerPacketType.InvokeAck);
+                    responsePacket.WriteInt(responseId);
+                    
+                    if (ControllerManager.CanInvokeMethod(methodName, args))
+                    {
+                        await ControllerManager.InvokeMethod(methodName, args);
+                        responsePacket.WriteInt(0);
+                    }
+                    else
+                    {
+                        responsePacket.WriteInt(0);
+                    }
+                    await PacketSender.SendAsync(responsePacket, BasePacketTypes.Message);
                 }
                 
             }else if (e.PacketType == BasePacketTypes.KeepAlive)
             {
-                Packet responsePacket = new Packet();
+                Packet responsePacket = Packet.Create();
                 responsePacket.WriteByte((byte)BasePacketTypes.KeepAlive);
-                PacketSender psender = new PacketSender(this.TcpClient, responsePacket, BasePacketTypes.KeepAlive);
-                psender.SendAsync().GetAwaiter().GetResult();
+                PacketSender.SendAsync(responsePacket, BasePacketTypes.KeepAlive).GetAwaiter().GetResult();
             }
             
         }
@@ -101,6 +167,11 @@ namespace StayNet
                 IsConnected = true;
                 _buffer = new byte[TcpClient.ReceiveBufferSize];
                 TcpClient.GetStream().BeginRead(_buffer, 0, TcpClient.ReceiveBufferSize, __read, null);
+                this.PacketSender = new PacketSender(this.TcpClient);
+                this.HeartbeatTimer = new System.Timers.Timer(150);
+                this.HeartbeatTimer.Elapsed += HeartbeatTimer_Elapsed;
+                this.HeartbeatTimer.Start();
+                this.HeartbeatTimer.AutoReset = true;
                 await SendInitialMessage(data);
             }
             catch (TimeoutException ex)
@@ -116,12 +187,19 @@ namespace StayNet
             
         }
 
+        private void HeartbeatTimer_Elapsed(object? sender, ElapsedEventArgs e)
+        {
+            if (IsConnected)
+            {
+                //HandleData();
+            }
+        }
+
         async Task SendInitialMessage(byte[] data)
         {
-            Packet packet = new Packet();
+            Packet packet = Packet.Create();
             packet.WriteBytes(data);
-            PacketSender sender = new PacketSender(this.TcpClient, packet, BasePacketTypes.InitialMessage);
-            await sender.SendAsync();            
+            await PacketSender.SendAsync(packet, BasePacketTypes.InitialMessage);            
         }
 
 
@@ -155,17 +233,19 @@ namespace StayNet
         {
 
             var data = _receiveBuffer.ToArray();
+
             if (data.Length < 4)
                 return;
-            
             int length = BitConverter.ToInt32(data, 0);
-            
+            if (length > data.Length)
+                return;
             byte[] packet = new byte[length];
             Array.Copy(data, 4, packet, 0, length);
             _receiveBuffer.RemoveRange(0, length + 4);
             
             PacketHandler.Handle(packet);            
-
+            HandleData();
+            _receiveBuffer.Print();
         }
 
         internal void Close()

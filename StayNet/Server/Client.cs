@@ -26,6 +26,7 @@ namespace StayNet.Server
         internal byte[] Buffer;
         internal CancellationTokenSource CancellationTokenSource;
         internal PacketHandler PacketHandler;
+        internal PacketSender PacketSender;
         internal List<byte> _receiveBuffer = new List<byte>();
         private System.Timers.Timer _keepAliveTimer;
         public int Ping { get; private set; }
@@ -42,19 +43,20 @@ namespace StayNet.Server
             _keepAliveTimer = new(1000);
             _keepAliveTimer.Elapsed += KeepAliveTimerOnElapsed;
             _keepAliveTimer.AutoReset = false;
+            PacketSender = new PacketSender(this.TcpClient);
         }
 
         private void KeepAliveTimerOnElapsed(object? sender, ElapsedEventArgs e)
         {
-            Packet packet = new Packet();
+            return;
+            Packet packet = Packet.Create();
             packet.WriteByte(1);
-            PacketSender psender = new PacketSender(this.TcpClient, packet, BasePacketTypes.KeepAlive);
             CancellationTokenSource cts = new CancellationTokenSource();
             cts.CancelAfter(5000);
             var responseTask = PacketHandler.WaitForPacket(p => p.PacketType == BasePacketTypes.KeepAlive, cts.Token);
             Stopwatch sw = new Stopwatch();
             sw.Start();
-            psender.SendAsync().GetAwaiter().GetResult();
+            PacketSender.SendAsync(packet, BasePacketTypes.KeepAlive).GetAwaiter().GetResult();
             var response = responseTask.GetAwaiter().GetResult();
             sw.Stop();
             if (response == null)
@@ -177,7 +179,6 @@ namespace StayNet.Server
         
         public void Disconnect()
         {
-            if (!TcpClient.Connected) return;
             CancellationTokenSource?.Cancel();
             this.Server.m_clients.Remove(this.Id);
             this.Server.CDisconnect(this);
@@ -187,7 +188,9 @@ namespace StayNet.Server
         
         public async Task InvokeAsync(String MethodId, params object[] args)
         {
-            MethodInvokeManager methodInvokeManager = MethodInvokeManager.Create(this.TcpClient, this.PacketHandler, CancellationTokenSource.Token, 
+
+
+            MethodInvokeManager methodInvokeManager = MethodInvokeManager.Create(this.TcpClient, this.PacketSender, this.PacketHandler, CancellationTokenSource.Token, 
                 MethodId, args, MethodInvokeManagerReturnType.None);
 
             try
@@ -198,8 +201,9 @@ namespace StayNet.Server
                 {
                     throw new MethodNotFoundException($"Method {MethodId} not found.", MethodId);
                 }
-                
-                
+                CancellationTokenSource cts = new CancellationTokenSource();
+                cts.CancelAfter(5000);
+                await methodInvokeManager.SendInvoke(cts.Token);
             }
             catch (TimeoutException e)
             {
@@ -207,10 +211,13 @@ namespace StayNet.Server
             }
             catch (MethodNotFoundException e)
             {
-                throw e;
+                throw;
+                
             }catch(Exception e)
             {
                 this.Server.Log(LogLevel.Debug, $"Error sending message {MethodId} to client {this.Id}: {e.Message}");
+                Console.WriteLine(e);
+                Console.WriteLine(e);
             }
         }
 

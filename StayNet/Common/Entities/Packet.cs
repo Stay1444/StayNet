@@ -4,7 +4,7 @@ using System.Text;
 
 namespace StayNet.Common.Entities
 {
-    internal class Packet
+    internal struct Packet
     {
         private List<byte> _data;
         public byte[] Data
@@ -15,6 +15,7 @@ namespace StayNet.Common.Entities
             }
         }
         
+        
         public int Length
         {
             get
@@ -24,35 +25,42 @@ namespace StayNet.Common.Entities
         }
 
         private int _position;
-        
-        public Packet(byte[] data)
+        public int Position
         {
-            _data = data.ToList();
-        }
-        
-        public Packet(byte[] data, int position)
-        {
-            _data = data.ToList();
-            _position = position;
+            get
+            {
+                return _position;
+            }
+            set
+            {
+                _position = value;
+            }
         }
 
 
-        public Packet()
-        {
-            _data = new List<byte>();
-            
-        }
-        
         public void Reset()
         {
             _position = 0;
         }
-        
-        public Packet Clone()
+
+        public static Packet Create(byte[] data)
         {
-            Packet clone = new Packet(_data.ToArray());
-            clone._position = _position;
-            return clone;
+            return new Packet(data);
+        }
+
+        public static Packet Create()
+        {
+            return new Packet( new byte[]{} );
+        }
+
+        private Packet(byte[] data)
+        {
+            _data = new List<byte>(data);
+            _position = 0;
+            if (data.Length > 0)
+            {
+                _data.AddRange(data);
+            }
         }
         
         public int ReadInt(bool advancePosition = true)
@@ -149,6 +157,7 @@ namespace StayNet.Common.Entities
         {
             _data.AddRange(value);
         }
+        
         
         public void WriteFloat(float value)
         {

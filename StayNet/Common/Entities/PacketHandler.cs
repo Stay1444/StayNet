@@ -23,20 +23,26 @@ namespace StayNet.Common.Entities
             BasePacketTypes packetType = (BasePacketTypes)data[0];
             byte[] packetData = new byte[data.Length - 1];
             Array.Copy(data, 1, packetData, 0, data.Length - 1);
-            Packet packet = new Packet(packetData);
+            Packet packet = Packet.Create(packetData);
             PacketInfo packetInfo = new PacketInfo(packet, packetType);
             PacketReceived?.Invoke(_sender, packetInfo);
-
-            for (int i = 0; i < _tcsWaiting.Count; i++)
+            try
             {
-                var tcs = _tcsWaiting[i];
-                if (tcs.Value.Compile().Invoke(packetInfo))
+                for (int i = 0; i < _tcsWaiting.Count; i++)
                 {
+                    var tcs = _tcsWaiting[i];
                     packetInfo.Packet.Reset();
-                    tcs.Key.SetResult(packetInfo);
-                    _tcsWaiting.RemoveAt(i);
-                    i--;
+                    if (tcs.Value.Compile().Invoke(packetInfo))
+                    {
+                        packetInfo.Packet.Reset();
+                        tcs.Key.SetResult(packetInfo);
+                        _tcsWaiting.RemoveAt(i);
+                        i--;
+                    }
                 }
+            }catch(Exception e)
+            {
+                Console.WriteLine(e);
             }
         }
         

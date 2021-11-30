@@ -156,10 +156,10 @@ namespace StayNet
                 // if the event was not canceled, we add the client to the list of connected clients
                 m_clients.Add(c.Id, c);
                 // and we raise the ClientConnected event
-                ClientConnected?.Invoke(this, c);
-                // we start the client handling task
                 await c.EndInitialization();
                 Log(LogLevel.Debug, $"[C{c.Id}] Client ready");
+                ClientConnected?.Invoke(this, c);
+                // we start the client handling task
             }
             catch (Exception e)
             {

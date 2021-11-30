@@ -5,14 +5,20 @@ namespace StayNet.Common.Entities
     internal static class ExtensionMethods
     {
 
-        public static void Print(this byte[] array)
+        public static bool Print(this byte[] array)
         {
-            Console.WriteLine("---");
             for (int i = 0; i < array.Length; i++)
             {
                 Console.Write(array[i]);
             }
-            Console.WriteLine("\n---");
+            Console.WriteLine();
+            return true;
+        }
+
+        public static bool Print(this object @object)
+        {
+            Console.WriteLine(@object.ToString());
+            return true;
         }
         
         public static void Print(this List<byte> array)
