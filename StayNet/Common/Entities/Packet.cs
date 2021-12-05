@@ -4,7 +4,7 @@ using System.Text;
 
 namespace StayNet.Common.Entities
 {
-    internal struct Packet
+    internal class Packet
     {
         private List<byte> _data;
         public byte[] Data

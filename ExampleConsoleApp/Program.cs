@@ -6,11 +6,18 @@ using System.Threading;
 using ExampleConsoleApp;
 using StayNet;
 Console.WriteLine("Hello World!");
+
+byte[] source = new byte[282];
+byte[] dest = new byte[282];
+
+Array.Copy(source, dest, 282);
+
 SimpleServerExample.Run();
 Thread.Sleep(2500);
 SimpleClientExample.Run(new IPEndPoint(IPAddress.Parse("127.0.0.1"), 1444));
-SimpleController.test();
 while (true)
 {
-    Thread.Sleep(5000);
+    Console.ReadLine();
+    SimpleController.Clear();
+    SimpleServerExample.TestRun(100000);
 }

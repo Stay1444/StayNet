@@ -53,7 +53,7 @@ namespace StayNet.Server
             packet.WriteByte(1);
             CancellationTokenSource cts = new CancellationTokenSource();
             cts.CancelAfter(5000);
-            var responseTask = PacketHandler.WaitForPacket(p => p.PacketType == BasePacketTypes.KeepAlive, cts.Token);
+            var responseTask = PacketHandler.WaitForPacket(BasePacketTypes.KeepAlive,p => p.PacketType == BasePacketTypes.KeepAlive, cts.Token);
             Stopwatch sw = new Stopwatch();
             sw.Start();
             PacketSender.SendAsync(packet, BasePacketTypes.KeepAlive).GetAwaiter().GetResult();
@@ -84,7 +84,7 @@ namespace StayNet.Server
             try
             {
                 cts.CancelAfter(5000);
-                var packetInfoTask = PacketHandler.WaitForPacket(_ => true, cts.Token);
+                var packetInfoTask = PacketHandler.WaitForPacket(BasePacketTypes.InitialMessage,_ => true, cts.Token);
                 TcpClient.GetStream().BeginRead(Buffer, 0, TcpClient.ReceiveBufferSize, __read, null);
                 var packetInfo = await packetInfoTask;
                 if (cts.IsCancellationRequested)
@@ -139,6 +139,7 @@ namespace StayNet.Server
                 Array.Copy(Buffer, data, readLength);
 
                 _receiveBuffer.AddRange(data);
+                
                 HandleData();
                 Buffer = new byte[TcpClient.ReceiveBufferSize];
                 TcpClient.GetStream().BeginRead(Buffer, 0, TcpClient.ReceiveBufferSize, __read, null);
@@ -155,17 +156,33 @@ namespace StayNet.Server
 
         private void HandleData()
         {
-            
-            var data = _receiveBuffer.ToArray();
-            if (data.Length < 4)
-                return;
-            int length = BitConverter.ToInt32(data, 0);
-            byte[] packet = new byte[length];
-            Array.Copy(data, 4, packet, 0, length);
-            _receiveBuffer.RemoveRange(0, length + 4);
             try
             {
-                PacketHandler.Handle(packet);
+                var data = _receiveBuffer.ToArray();
+                if (data.Length < 4)
+                    return;
+                int length = BitConverter.ToInt32(data, 0);
+                
+                if (length > data.Length)
+                    return;
+                
+                byte[] packet = new byte[length];
+                
+                if (data.Length - 4 < length)
+                    return;
+                
+                Array.Copy(data, 4, packet, 0, length);
+                _receiveBuffer.RemoveRange(0, length + 4);
+                try
+                {
+                    PacketHandler.Handle(packet);
+
+                }catch(Exception e)
+                {
+                    this.Server.Log(LogLevel.Error, "Error handling packet: " + e.Message);
+                }
+                HandleData();
+
             }catch(Exception e)
             {
                 this.Server.Log(LogLevel.Error, "Error handling packet: " + e.Message);
@@ -195,15 +212,10 @@ namespace StayNet.Server
 
             try
             {
-                var result = await methodInvokeManager.SendPreInvoke();
 
-                if (!result)
-                {
-                    throw new MethodNotFoundException($"Method {MethodId} not found.", MethodId);
-                }
                 CancellationTokenSource cts = new CancellationTokenSource();
                 cts.CancelAfter(5000);
-                await methodInvokeManager.SendInvoke(cts.Token);
+                await methodInvokeManager.SendInvoke(cts.Token,false);
             }
             catch (TimeoutException e)
             {

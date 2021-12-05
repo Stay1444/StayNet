@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Threading;
+using System.Threading.Tasks;
 using System.Timers;
 using StayNet.Common.Attributes;
 using StayNet.Common.Controllers;
@@ -9,32 +10,23 @@ namespace ExampleConsoleApp
     public class SimpleController : BaseController
     {
         private static int total;
-        private static int count;
-        private static System.Timers.Timer timer = new System.Timers.Timer(1500);
         [Method("Hi")]
         public async Task Message(string i, int t)
         {
-            count = t;
-            total+= 1;
-            Console.WriteLine($"{i}");
+            
+            //increment total thread safe
+            Interlocked.Increment(ref total);
+            if (total >= 2500)
+            {
+            }
+            Console.WriteLine($"{i} {total}");
+            
         }
 
-        public static void test()
+        public static void Clear()
         {
-            timer.Start();
-            timer.AutoReset = true;
-            timer.Elapsed += (sender, args) =>
-            {
-                if (total >= count)
-                {
-                    Console.WriteLine("Done");
-                    total = 0;
-                    SimpleServerExample.TestRun(10000);
-                }
-                Console.WriteLine(total + " " + count);
-            };
-        }
-        
+            total = 0;
+        }        
         
     }
 }

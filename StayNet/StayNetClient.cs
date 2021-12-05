@@ -217,9 +217,16 @@ namespace StayNet
                 byte[] data = new byte[readLength];
                 
                 Array.Copy(_buffer, data, readLength);
-                
+
                 _receiveBuffer.AddRange(data);
-                HandleData();
+                try
+                {
+                    HandleData();
+                }catch(Exception e)
+                {
+                    Log(LogLevel.Error, "Error handling data:" + e.ToString());
+                }
+
                 _buffer = new byte[TcpClient.ReceiveBufferSize];
                 TcpClient.GetStream().BeginRead(_buffer, 0, TcpClient.ReceiveBufferSize, __read, null);
             }catch(Exception e)
@@ -232,20 +239,42 @@ namespace StayNet
         private void HandleData()
         {
 
-            var data = _receiveBuffer.ToArray();
+            try
+            {
+                var data = _receiveBuffer.ToArray();
+                if (data.Length < 4)
+                    return;
+                
+                int length = BitConverter.ToInt32(data, 0);
+                
+                if (length > data.Length)
+                    return;
+                
+                byte[] packet = new byte[length];
 
-            if (data.Length < 4)
-                return;
-            int length = BitConverter.ToInt32(data, 0);
-            if (length > data.Length)
-                return;
-            byte[] packet = new byte[length];
-            Array.Copy(data, 4, packet, 0, length);
-            _receiveBuffer.RemoveRange(0, length + 4);
-            
-            PacketHandler.Handle(packet);            
-            HandleData();
-            _receiveBuffer.Print();
+                if (data.Length - 4 < length)
+                    return;
+                
+                try
+                {
+                    Array.Copy(data, 4, packet, 0, length);
+                }catch(Exception e)
+                {
+                    Log(LogLevel.Error, $"Error copying data: {e.Message}");
+
+                    throw e;
+                }
+
+                _receiveBuffer.RemoveRange(0, length + 4);
+                PacketHandler.Handle(packet);
+                HandleData();
+
+            }catch(Exception e)
+            {
+                Log(LogLevel.Error, $"Error handling data:{e.Message}");
+            }finally
+            {
+            }
         }
 
         internal void Close()

@@ -37,34 +37,8 @@ namespace StayNet.Common.Entities
         }
 
 
-        public async Task<bool> SendPreInvoke()
-        {
-            return true;
-            CancellationTokenSource cts = new CancellationTokenSource();
-            cts.CancelAfter(TimeSpan.FromSeconds(5));
-            Packet packet = Packet.Create();
-            packet.WriteByte((byte) MethodInvokeManagerPacketType.PreInvoke);
-            int responseId = PacketSender.GetNextResponseId();
-            packet.WriteInt(responseId);
-            packet.WriteString(MethodName);
-            var responseTask = PacketHandler.WaitForPacket(x => x.PacketType == BasePacketTypes.Message
-            && x.Packet.ReadByte(true) == (byte) MethodInvokeManagerPacketType.PreInvokeAck && x.Packet.ReadInt(true) == responseId, cts.Token);
-            
-            
-            await PacketSender.SendAsync(packet, BasePacketTypes.Message);
-            var response = await responseTask;
-            if (response == null)
-            {
-                throw new TimeoutException("PreInvoke timed out");
-            }
-            response.Packet.ReadByte();
-            response.Packet.ReadInt();
-            bool isSuccess = response.Packet.ReadBool();
 
-            return isSuccess;
-        }
-
-        public async Task<byte[]> SendInvoke(CancellationToken token)
+        public async Task<byte[]> SendInvoke(CancellationToken token, bool wait)
         {
             token.ThrowIfCancellationRequested();
             Packet packet = Packet.Create();
@@ -114,25 +88,31 @@ namespace StayNet.Common.Entities
 
 
             }
-            
-            //var responseTask = PacketHandler.WaitForPacket(x => x.PacketType == BasePacketTypes.Message
-             //   && x.Packet.ReadByte(true) == (byte) MethodInvokeManagerPacketType.InvokeAck 
-              //  && x.Packet.ReadInt(true) == responseId, token);
-            await PacketSender.SendAsync(packet, BasePacketTypes.Message);
-            //var response = await responseTask;
-            PacketInfo response = null;
-            if (response == null)
+
+            if (wait)
             {
-                return new []{(byte)0};
-                //throw new TimeoutException("Invoke timed out");
+                var responseTask = PacketHandler.WaitForPacket(BasePacketTypes.Message,x =>
+                    x.Packet.ReadByte(true) == (byte) MethodInvokeManagerPacketType.InvokeAck 
+                    && x.Packet.ReadInt(true) == responseId);
+                await PacketSender.SendAsync(packet, BasePacketTypes.Message);
+                var response = await responseTask;
+                if (response is null)
+                {
+                    return null;
+                }
+
+                response.Packet.ReadByte();
+                response.Packet.ReadInt();
+                int responseLength = response.Packet.ReadInt();
+                if (responseLength == 0)
+                {
+                    return null;
+                }
             }
-            response.Packet.ReadByte();
-            response.Packet.ReadInt();
-            
-            int responseLength = response.Packet.ReadInt();
-            if (responseLength == 0)
+            else
             {
-                return null;
+                await PacketSender.SendAsync(packet, BasePacketTypes.Message);
+
             }
 
             //byte[] result = response.Packet.ReadBytes(response.Packet.ReadInt(true));

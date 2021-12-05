@@ -31,7 +31,6 @@ namespace ExampleConsoleApp
 
             server.ClientConnected += (sender, e) =>
             {
-                TestRun(1);
                 Console.WriteLine($"Client connected|");
             };
 
@@ -47,7 +46,7 @@ namespace ExampleConsoleApp
                 for (int i = 0; i<t; i++)
                 {
                         
-                    server.GetClients().First().InvokeAsync("Hi",Guid.NewGuid().ToString(), t);
+                     server.GetClients().First().InvokeAsync("Hi",Guid.NewGuid().ToString(), t);
                         
                 }
 

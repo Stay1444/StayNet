@@ -12,7 +12,7 @@ namespace StayNet.Common.Entities
         
         private object _sender;
         public event EventHandler<PacketInfo> PacketReceived;
-        private List<KeyValuePair<TaskCompletionSource<PacketInfo>, Expression<Func<PacketInfo, bool>>>> _tcsWaiting = new();
+        private List<KeyValuePair<BasePacketTypes, KeyValuePair<TaskCompletionSource<PacketInfo>, Expression<Func<PacketInfo, bool>>>>> _tcsWaiting = new();
         public PacketHandler(object sender)
         {
             this._sender = sender;
@@ -30,37 +30,62 @@ namespace StayNet.Common.Entities
             {
                 for (int i = 0; i < _tcsWaiting.Count; i++)
                 {
-                    var tcs = _tcsWaiting[i];
-                    packetInfo.Packet.Reset();
-                    if (tcs.Value.Compile().Invoke(packetInfo))
+
+                    var d = _tcsWaiting[i];
+                   
+                    if (d.Key != packetType)
                     {
-                        packetInfo.Packet.Reset();
-                        tcs.Key.SetResult(packetInfo);
+
+                        continue;
+                    }
+
+
+                    
+                    var tcs = d.Value;
+                    packetInfo.Packet.Reset();
+                    try
+                    {
+                        if (tcs.Value.Compile().Invoke(packetInfo))
+                        {
+
+                        
+                            if (tcs.Key.TrySetResult(packetInfo))
+                            {
+                                _tcsWaiting.RemoveAt(i);
+                                packetInfo.Packet.Reset();
+                            }
+
+                            break;
+                        }
+                    }catch(Exception e)
+                    {
+                        tcs.Key.TrySetException(e);
                         _tcsWaiting.RemoveAt(i);
-                        i--;
+                        packetInfo.Packet.Reset();
+                        break;
                     }
                 }
             }catch(Exception e)
             {
-                Console.WriteLine(e);
+                
             }
         }
         
-        public Task<PacketInfo> WaitForPacket(Expression<Func<PacketInfo, bool>> filter)
+        public Task<PacketInfo> WaitForPacket(BasePacketTypes type, Expression<Func<PacketInfo, bool>> filter)
         {
-            TaskCompletionSource<PacketInfo> tcs = new TaskCompletionSource<PacketInfo>();
-            _tcsWaiting.Add(new KeyValuePair<TaskCompletionSource<PacketInfo>, Expression<Func<PacketInfo, bool>>>(tcs, filter));
-            return tcs.Task;
+            var cancellationTokenSource = new CancellationTokenSource();
+            cancellationTokenSource.CancelAfter(1000);
+            return WaitForPacket(type, filter, cancellationTokenSource.Token);
         }
 
-        public async Task<PacketInfo> WaitForPacket(Expression<Func<PacketInfo, bool>> filter, CancellationToken cancellationToken)
+        public async Task<PacketInfo> WaitForPacket(BasePacketTypes type, Expression<Func<PacketInfo, bool>> filter, CancellationToken cancellationToken)
         {
             TaskCompletionSource<PacketInfo> tcs = new TaskCompletionSource<PacketInfo>(cancellationToken);
 
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                _tcsWaiting.Add(new KeyValuePair<TaskCompletionSource<PacketInfo>, Expression<Func<PacketInfo, bool>>>(tcs, filter));
+                _tcsWaiting.Add(new KeyValuePair<BasePacketTypes, KeyValuePair<TaskCompletionSource<PacketInfo>, Expression<Func<PacketInfo, bool>>>>(type, new KeyValuePair<TaskCompletionSource<PacketInfo>, Expression<Func<PacketInfo, bool>>>(tcs, filter)));
                 using (cancellationToken.Register(() => {
                     // this callback will be executed when token is cancelled
                     tcs.TrySetCanceled();
@@ -72,7 +97,14 @@ namespace StayNet.Common.Entities
             }
             catch (OperationCanceledException)
             {
-                _tcsWaiting.RemoveAll(x => x.Key == tcs);
+                try
+                {
+                    _tcsWaiting.RemoveAll(x => x.Value.Key == tcs);
+                }catch(Exception e)
+                {
+                    
+                }
+
                 return null;
             }
         }
